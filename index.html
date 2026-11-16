@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>prototype</title>
+<style>
+:root{--bg:#f2f2f0;--surface:#fff;--ink:#222;--mute:#666;--line:#999;--ok:#2d6a3e;--bad:#a33a2a;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#1b1b1a;--surface:#262625;--ink:#eee;--mute:#aaa;--line:#777;--ok:#7fcf93;--bad:#ef9a8a}}
+:root[data-theme="dark"]{--bg:#1b1b1a;--surface:#262625;--ink:#eee;--mute:#aaa;--line:#777;--ok:#7fcf93;--bad:#ef9a8a}
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--bg);color:var(--ink);font-family:"Trebuchet MS",Verdana,sans-serif;line-height:1.45}
+body{padding:16px;display:flex;justify-content:center}
+.phone{width:100%;max-width:400px;border:2px solid var(--line);border-radius:18px;background:var(--surface);padding:16px;min-height:600px;display:flex;flex-direction:column;gap:12px}
+.bar{display:flex;justify-content:space-between;font-size:13px;color:var(--mute);border-bottom:1px dashed var(--line);padding-bottom:6px}
+h2{font-size:18px;margin:0}p{margin:0}
+.mute{color:var(--mute);font-size:14px}
+button{font:inherit;color:var(--ink);background:var(--surface);border:2px solid var(--line);border-radius:8px;padding:10px;cursor:pointer;text-align:left}
+button:hover{border-style:dashed}
+button:focus-visible{outline:3px solid var(--ink);outline-offset:2px}
+button:disabled{opacity:.5;cursor:default}
+.primary{border-color:var(--ink);text-align:center;font-weight:bold}
+.tabs{display:flex;gap:4px}.tabs button{flex:1;padding:6px 2px;font-size:11px;text-align:center}.tabs .on{border-color:var(--ink);font-weight:bold}
+.comp{border:2px solid var(--line);border-radius:8px;padding:10px}.comp.full{border-color:var(--bad)}.comp.hit{border-style:dashed;border-color:var(--ink)}
+.top{display:flex;justify-content:space-between;align-items:center;gap:8px}
+.meter{height:14px;border:2px solid var(--line);border-radius:4px;margin:6px 0 2px}.meter i{display:block;height:100%;background:var(--line)}
+.chip{font-size:12px;border:1px dashed var(--line);border-radius:10px;padding:1px 8px;white-space:nowrap}
+.alert{border:2px solid var(--bad);border-radius:8px;padding:10px;cursor:pointer}
+.alert b{color:var(--bad)}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.res{border:2px solid var(--ok);border-radius:8px;padding:10px}.res.chk{border-color:var(--bad)}
+.row{display:flex;gap:8px}.row button{flex:1;text-align:center}
+.stat{font-size:30px;font-weight:bold}
+.note{font-size:12px;color:var(--mute);border-top:1px dashed var(--line);padding-top:8px;margin-top:auto}
+</style>
+</head>
+<body>
+<main class="phone" id="app" aria-live="polite"></main>
+<script>
+var ITEMS=[
+{n:"Banana peel",c:"wet",a:10},{n:"Leftover food",c:"wet",a:12},
+{n:"Plastic bottle",c:"dry",a:8},{n:"Clean paper",c:"dry",a:8},
+{n:"Paper plate with food",c:"mixed",a:12},{n:"Paper cup",c:"mixed",a:10},
+{n:"Tetra pack",c:"mixed",a:10},{n:"Toothpaste tube",c:"mixed",a:8}
+];
+var COMPS=[{k:"wet",t:"Wet",s:"Green"},{k:"dry",t:"Dry",s:"Blue"},{k:"mixed",t:"Mixed / unsure",s:"Grey"}];
+var NAMES={status:"Status",drop:"Drop",alerts:"Alerts",empty:"Empty",summary:"Summary"};
+var ORDER=["drop","status","alerts","empty","summary"];
+var st;
+function fresh(){return{s:"status",lv:{wet:30,dry:20,mixed:10},mixedN:0,sorted:0,last:null,busy:false,em:{wet:0,dry:0,mixed:0},t0:null,t1:null}}
+st=fresh();
+var app=document.getElementById("app");
+function nm(k){return COMPS.filter(function(c){return c.k===k})[0].t}
+function status(v){return v>=100?"Full":v>=80?"Nearly full":"OK"}
+function go(s){st.s=s;if(s==="empty"&&!st.t0)st.t0=Date.now();render()}
+function drop(i){
+ if(st.busy)return;st.busy=true;st.last={i:i,done:false};render();
+ setTimeout(function(){var it=ITEMS[i];st.lv[it.c]=Math.min(100,st.lv[it.c]+it.a);st.sorted++;if(it.c==="mixed")st.mixedN++;st.last.done=true;st.busy=false;render()},800);
+}
+function emp(k){if(st.lv[k]===0)return;if(!st.t0)st.t0=Date.now();st.em[k]++;st.lv[k]=0;if(k==="mixed")st.mixedN=0;render()}
+function confirmAll(){st.t1=Date.now();go("summary")}
+function reset(){st=fresh();render()}
+function tabs(){return '<div class="tabs">'+ORDER.map(function(x,i){return '<button class="'+(st.s===x?'on':'')+'" onclick="go(\''+x+'\')">'+(i+1)+' '+NAMES[x]+'</button>'}).join("")+'</div>'}
+function comp(c,extra){var v=st.lv[c.k],s=status(v);
+ return '<div class="comp '+(s==="Full"?'full ':'')+(extra||'')+'"><div class="top"><b>'+c.t+'</b><span class="chip">'+c.s+' · '+s+'</span></div><div class="meter" role="img" aria-label="'+c.t+' '+v+' percent full"><i style="width:'+v+'%"></i></div><span class="mute">'+v+'% full'+(c.k==="mixed"&&st.mixedN?' · '+st.mixedN+' item'+(st.mixedN>1?'s':'')+' need a staff check':'')+'</span></div>'}
+function alerts(){var a=[];
+ COMPS.forEach(function(c){var v=st.lv[c.k];if(v>=80)a.push({t:c.t+" compartment is "+status(v).toLowerCase(),d:v+"% full"})});
+ if(st.mixedN)a.push({t:"Mixed / unsure compartment needs a check",d:st.mixedN+" item"+(st.mixedN>1?"s":"")+" the bin could not sort cleanly"});
+ return a}
+function render(){
+ var h='<div class="bar"><span>Smart bin · '+(st.s==="drop"?"facilitator":"staff")+' view</span><span>Step '+(ORDER.indexOf(st.s)+1)+' of 5</span></div>'+tabs(),s=st.s,al=alerts();
+ if(s==="status"){
+  h+='<h2>Bin station status</h2>'+COMPS.map(function(c){return comp(c)}).join("")+
+  (al.length?'<div class="alert" onclick="go(\'alerts\')"><b>'+al.length+' alert'+(al.length>1?'s':'')+'</b><br><span class="mute">Tap to see what needs attention</span></div>':'<p class="mute">No alerts. All compartments are OK.</p>')+
+  '<div class="row"><button onclick="go(\'drop\')">Facilitator: simulate drop</button><button class="primary" onclick="go(\'empty\')">Empty bin</button></div>';
+ }else if(s==="drop"){
+  h+='<h2>Drop waste (simulated)</h2><p class="mute">Facilitator only: simulate a student dropping an item. The bin sorts it into a compartment by itself.</p><div class="grid">'+ITEMS.map(function(x,i){return '<button onclick="drop('+i+')"'+(st.busy?' disabled':'')+'>'+x.n+'</button>'}).join("")+'</div>';
+  if(st.last){var it=ITEMS[st.last.i];
+   if(!st.last.done)h+='<div class="comp hit"><b>Sorting '+it.n+'…</b></div>';
+   else h+='<div class="res '+(it.c==="mixed"?'chk':'')+'"><b>'+it.n+' sorted to: '+nm(it.c)+'</b><p class="mute">'+(it.c==="mixed"?'Several materials joined, so it needs a staff check.':'Sorted with no staff action needed.')+'</p></div>';}
+  h+='<div class="comp">'+COMPS.map(function(c){return c.t+' '+st.lv[c.k]+'%'}).join(' · ')+'</div>';
+ }else if(s==="alerts"){
+  h+='<h2>Alerts</h2>'+(al.length?al.map(function(a){return '<div class="alert" onclick="go(\'empty\')"><b>'+a.t+'</b><br><span class="mute">'+a.d+'. Tap to go to Empty.</span></div>'}).join(""):'<p class="mute">No alerts right now.</p>');
+ }else if(s==="empty"){
+  var any=st.em.wet+st.em.dry+st.em.mixed>0;
+  h+='<h2>Empty and confirm</h2><p class="mute">Empty each compartment you are clearing. Check the mixed compartment first.</p>'+
+  COMPS.map(function(c){return '<button onclick="emp(\''+c.k+'\')"'+(st.lv[c.k]===0?' disabled':'')+'><b>'+(c.k==="mixed"?'Check and empty ':'Empty ')+c.t.toLowerCase()+'</b><br><span class="mute">'+st.lv[c.k]+'% full'+(st.lv[c.k]===0?' · emptied':'')+'</span></button>'}).join("")+
+  '<button class="primary" onclick="confirmAll()"'+(any?'':' disabled')+'>Confirm and send for disposal</button>';
+ }else{
+  var secs=st.t0&&st.t1?Math.round((st.t1-st.t0)/1000):0;var bins=(st.em.wet>0?1:0)+(st.em.dry>0?1:0)+(st.em.mixed>0?1:0);
+  h+='<h2>Waste collection summary</h2><div class="stat">'+bins+'</div><p class="mute">Number of bins waste collected from</p>'+
+  '<div class="comp">Time to clear: <b>'+secs+' s</b><br>Items auto-sorted this session: <b>'+st.sorted+'</b><br>Compartments emptied: Wet '+st.em.wet+' · Dry '+st.em.dry+' · Mixed '+st.em.mixed+'<br>Mixed items still needing a check: <b>'+st.mixedN+'</b></div>'+
+  '<div class="row"><button onclick="go(\'status\')">Back to status</button><button class="primary" onclick="reset()">Reset</button></div>';
+ }
+ 
+ app.innerHTML=h;
+}
+render();
+</script>
+</body>
+</html>
